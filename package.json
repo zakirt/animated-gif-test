@@ -7,13 +7,15 @@
     "test": "jest",
     "test:tdd": "jest --watch",
     "test:coverage": "jest --coverage --colors",
-    "lint": "eslint"
+    "lint": "eslint",
+    "build": "parcel index.html"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "devDependencies": {
     "eslint": "^7.7.0",
-    "jest": "^26.4.2"
+    "jest": "^26.4.2",
+    "parcel": "^1.12.4"
   }
 }

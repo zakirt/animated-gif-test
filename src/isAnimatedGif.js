@@ -7,74 +7,98 @@ const GIF_LOGICAL_SCREEN_DESCRIPTOR_LENGTH = 7;
 
 /**
  * Checks whether array buffer contains animated GIF.
- * @param {ArrayBuffer} buffer
+ * @param {ArrayBuffer|Buffer} buffer
+ * @param {Object} [options] additional flags for handling GIF animation test
+ * @param {boolean} options.enforce89aCheck enforces GIF89a version check in the file header.
+ * defaults to true.
  * @returns {boolean} true if GIF is animated, false otherwise
  */
-function isAnimatedGif(buffer) {
-    if (!hasValidGifHeader(buffer)) {
-        const message = 'isAnimatedGif(): buffer does not'
-            + ' contain valid GIF 89a file representation.';
-        throw new TypeError(message);
-    }
+function isAnimatedGif(buffer, { enforce89aCheck = true } = { enforce89aCheck: true }) {
+    buffer = convertToArrayBufferIfNeeded(buffer);
+    throwIfNotValidGif(buffer, enforce89aCheck);
     const offset = getStartOffset();
     const dataView = new DataView(buffer, offset);
-    const globalColorTableSize = getGlobalColorTableSize(dataView);
-    const delayTime = getDelayTime(dataView, globalColorTableSize);
-    return !!delayTime;
+    const isAnimated = isContainingAnimationData(dataView);
+    return isAnimated;
+}
+
+function convertToArrayBufferIfNeeded(buffer) {
+    if (buffer instanceof ArrayBuffer) {
+        return buffer;
+    }
+    return new Uint8Array(buffer).buffer;
+}
+
+function throwIfNotValidGif(buffer, enforce89aCheck) {
+    if (!hasValidGifHeader(buffer, enforce89aCheck)) {
+        const message = 'isAnimatedGif(): buffer does not contain valid GIF format.';
+        throw new TypeError(message);
+    }
 }
 
 function getStartOffset() {
     return GIF_HEADER_LENGTH + GIF_LOGICAL_SCREEN_DESCRIPTOR_LENGTH - 3;
 }
 
-function hasValidGifHeader(buffer) {
+function hasValidGifHeader(buffer, enforce89aCheck) {
     const typedArray = new Uint8Array(buffer, 0, GIF_HEADER_LENGTH);
     const str = String.fromCharCode(...typedArray);
-    return str === 'GIF89a';
+    return enforce89aCheck ? (str === 'GIF89a') : str.startsWith('GIF');
 }
 
 function getGlobalColorTableSize(dataView) {
-    const globalColorTable = dataView.getUint8(0);
-    return hasGlobalColorTableFlag()
-        ? calcGlobalColorTableSize(globalColorTable)
+    const packedField = dataView.getUint8(0);
+    return hasGlobalColorTableFlag(packedField)
+        ? calcGlobalColorTableSize(packedField)
         : 0;
 }
 
-function hasGlobalColorTableFlag(globalColorTable) {
-    return globalColorTable & 0x80;
+function hasGlobalColorTableFlag(packedField) {
+    return packedField & 0x80;
 }
 
 function calcGlobalColorTableSize(globalColorTable) {
     // grab the last 3 bits, to calculate the global color table size -> RGB * 2^(N+1)
     // N is the value in the last 3 bits.
-    const globalColorTableSize = 3 * Math.pow(2, (globalColorTable & 0x7) + 1);
+    const N = globalColorTable & 0x7;
+    const globalColorTableSize = 3 * 2 ** (N + 1);
     return globalColorTableSize;
 }
 
-function getDelayTime(dataView, globalColorTableSize) {
+function isContainingAnimationData(dataView) {
     try {
-        const gce = getGraphicsControlExtension(dataView, globalColorTableSize);
-        if (isAnimationBlocksPresent(gce)) {
-            // skip to the 2 bytes with the delay time
-            return dataView.getUint16(gce.offset + 4);
+        const gce = extractGraphicsControlExtension(dataView);
+        if (isGceBlocksPresent(gce)) {
+            const disposalMethod = extractDisposalMethod(gce.packedField);
+            return !!disposalMethod;
         }
-        return 0;
+        return false;
     } catch (e) {
-        return 0;
+        if (e instanceof RangeError) {
+            return false;
+        }
+        throw e;
     }
 }
 
-function getGraphicsControlExtension(dataView, globalColorTableSize) {
+function extractDisposalMethod(packedField) {
+    const disposalMethod = (packedField >> 2) & 0x7;
+    return disposalMethod;
+}
+
+function extractGraphicsControlExtension(dataView) {
+    const globalColorTableSize = getGlobalColorTableSize(dataView);
     const offset = globalColorTableSize + 3;
     const extensionIntroducer = dataView.getUint8(offset);
     const graphicsControlLabel = dataView.getUint8(offset + 1);
+    const packedField = dataView.getUint8(offset + 3);
     return {
         extensionIntroducer,
         graphicsControlLabel,
-        offset
+        packedField
     };
 }
 
-function isAnimationBlocksPresent({ extensionIntroducer, graphicsControlLabel }) {
+function isGceBlocksPresent({ extensionIntroducer, graphicsControlLabel }) {
     return (extensionIntroducer & 0x21) && (graphicsControlLabel & 0xF9);
 }
