@@ -1,0 +1,19 @@
+{
+  "name": "animated-gif-test",
+  "version": "1.0.0",
+  "description": "",
+  "main": "isAnimatedGif.js",
+  "scripts": {
+    "test": "jest",
+    "test:tdd": "jest --watch",
+    "test:coverage": "jest --coverage --colors",
+    "lint": "eslint"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "eslint": "^7.7.0",
+    "jest": "^26.4.2"
+  }
+}

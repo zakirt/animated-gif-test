@@ -1,0 +1,25 @@
+{
+    "extends": [
+        "eslint:recommended"
+    ],
+    "env": {
+        "es6": true,
+        "node": true,
+        "jest": true
+    },
+    "parserOptions": {
+        "ecmaVersion": 2018
+    },
+    "rules": {
+        "strict": [2, "global"],
+        "indent": [
+            "error",
+            4,
+            {
+                "SwitchCase": 1
+            }
+        ],
+        "semi": ["error", "always"],
+        "max-len": ["error", { "code": 100 }]
+    }
+}
